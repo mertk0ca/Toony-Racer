@@ -7371,10 +7371,10 @@ MonoBehaviour:
   maxSpeed: 140
   maxReverseSpeed: 45
   accelerationMultiplier: 4
-  maxSteeringAngle: 27
+  maxSteeringAngle: 30
   steeringSpeed: 1
   brakeForce: 350
-  brakeBuildSpeed: 2.5
+  brakeBuildSpeed: 2
   decelerationMultiplier: 1
   handbrakeDriftMultiplier: 10
   bodyMassCenter: {x: 0, y: -0.35, z: 0}
@@ -7386,10 +7386,10 @@ MonoBehaviour:
   launchSpinVisualSpeed: 1100
   launchBlendSpeed: 1
   counterSteerAssist: 1
-  highSpeedSteerScale: 0.42
+  highSpeedSteerScale: 1
   handbrakeGrip: 0.42
   handbrakeBrakeStrength: 0.1
-  handbrakeSpinLimit: 1.85
+  handbrakeSpinLimit: 2.5
   frontLeftMesh: {fileID: 3168620562015931784}
   frontLeftCollider: {fileID: 1288288036}
   frontRightMesh: {fileID: 1600480559283466918}
