@@ -23,6 +23,8 @@ public class PrometeoEditor : Editor{
   private SerializedProperty launchSteerKick;
   private SerializedProperty launchSpinVisualSpeed;
   private SerializedProperty launchBlendSpeed;
+  private SerializedProperty counterSteerAssist;
+  private SerializedProperty highSpeedSteerScale;
   private SerializedProperty handbrakeGrip;
   private SerializedProperty handbrakeBrakeStrength;
   private SerializedProperty handbrakeSpinLimit;
@@ -77,6 +79,8 @@ public class PrometeoEditor : Editor{
     launchSteerKick = so.FindProperty("launchSteerKick");
     launchSpinVisualSpeed = so.FindProperty("launchSpinVisualSpeed");
     launchBlendSpeed = so.FindProperty("launchBlendSpeed");
+    counterSteerAssist = so.FindProperty("counterSteerAssist");
+    highSpeedSteerScale = so.FindProperty("highSpeedSteerScale");
     handbrakeGrip = so.FindProperty("handbrakeGrip");
     handbrakeBrakeStrength = so.FindProperty("handbrakeBrakeStrength");
     handbrakeSpinLimit = so.FindProperty("handbrakeSpinLimit");
@@ -140,6 +144,8 @@ public class PrometeoEditor : Editor{
     launchSteerKick.floatValue = EditorGUILayout.Slider("Launch Steer Kick:", launchSteerKick.floatValue, 0f, 3.5f);
     launchSpinVisualSpeed.floatValue = EditorGUILayout.Slider("Launch Spin Visual Speed:", launchSpinVisualSpeed.floatValue, 0f, 2500f);
     launchBlendSpeed.floatValue = EditorGUILayout.Slider("Launch Blend Speed:", launchBlendSpeed.floatValue, 0.5f, 12f);
+    counterSteerAssist.floatValue = EditorGUILayout.Slider("Counter Steer Assist:", counterSteerAssist.floatValue, 0f, 3f);
+    highSpeedSteerScale.floatValue = EditorGUILayout.Slider("High Speed Steer Scale:", highSpeedSteerScale.floatValue, 0.2f, 1f);
     handbrakeGrip.floatValue = EditorGUILayout.Slider("Handbrake Grip:", handbrakeGrip.floatValue, 0.2f, 0.85f);
     handbrakeBrakeStrength.floatValue = EditorGUILayout.Slider("Handbrake Brake Strength:", handbrakeBrakeStrength.floatValue, 0.1f, 1.5f);
     handbrakeSpinLimit.floatValue = EditorGUILayout.Slider("Handbrake Spin Limit:", handbrakeSpinLimit.floatValue, 0.8f, 4.5f);
