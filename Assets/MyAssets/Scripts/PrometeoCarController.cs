@@ -36,7 +36,7 @@ public class PrometeoCarController : MonoBehaviour
     [Range(0.5f, 10f)]
     public float brakeBuildSpeed = 2.5f;
     [Range(1, 10)]
-    public int decelerationMultiplier = 2;
+    public float decelerationMultiplier = 2f;
     [Range(1, 10)]
     public int handbrakeDriftMultiplier = 4;
     [Space(10)]
@@ -63,6 +63,8 @@ public class PrometeoCarController : MonoBehaviour
     public float counterSteerAssist = 0.45f;       // Drift sirasinda arabayi toparlamaya yardimci karsi direksiyon gucu
     [Range(0.2f, 1f)]
     public float highSpeedSteerScale = 0.42f;      // Yuksek hizda direksiyon hareket carpanı (dusuk hizda 1.0)
+    [Range(0.2f, 1f)]
+    public float highSpeedDriftSteerScale = 1f; // Yuksek hizda DRIFT sirasinda direksiyon aci carpani
     [Range(0.2f, 0.85f)]
     public float handbrakeGrip = 0.42f;            // El freni (Space) cekince arka teker tutusu
     [Range(0.1f, 1.5f)]
@@ -158,6 +160,7 @@ public class PrometeoCarController : MonoBehaviour
     float launchBlend = 0f;
     float postHandbrakeWheelspinTimer = 0f;
     float extraRearSpinAngle = 0f;
+    float brakeVisualRollAngle = 0f;
     bool rearWheelsLocked = false;
     Quaternion lockedRearLeftLocalRot;
     Quaternion lockedRearRightLocalRot;
@@ -256,15 +259,42 @@ public class PrometeoCarController : MonoBehaviour
             if (turnLeftPTI.buttonPressed) TurnLeft();
             if (turnRightPTI.buttonPressed) TurnRight();
 
-            if (throttlePTI.buttonPressed) { CancelInvoke("DecelerateCar"); deceleratingCar = false; ReleaseBrakes(); GoForward(); }
-            if (reversePTI.buttonPressed) { CancelInvoke("DecelerateCar"); deceleratingCar = false; if (localVelocityZ > 1.5f) Brakes(); else { ReleaseBrakes(); GoReverse(); } }
-            else if (!throttlePTI.buttonPressed) ReleaseBrakes();
+            bool fwdHeld = throttlePTI.buttonPressed;
+            bool revHeld = reversePTI.buttonPressed;
+
+            if (fwdHeld)
+            {
+                CancelInvoke("DecelerateCar");
+                deceleratingCar = false;
+                ReleaseBrakes();
+                GoForward();
+            }
+            else if (revHeld)
+            {
+                CancelInvoke("DecelerateCar");
+                deceleratingCar = false;
+                if (localVelocityZ > 0.6f)
+                {
+                    if (throttleAxis > 0f) throttleAxis = Mathf.MoveTowards(throttleAxis, 0f, Time.deltaTime * 12f);
+                    ThrottleOff();
+                    Brakes();
+                }
+                else
+                {
+                    ReleaseBrakes();
+                    GoReverse();
+                }
+            }
+            else
+            {
+                ReleaseBrakes();
+                ThrottleOff();
+            }
 
             if (handbrakePTI.buttonPressed) { CancelInvoke("DecelerateCar"); deceleratingCar = false; Handbrake(); }
             else RecoverTraction();
 
-            if (!throttlePTI.buttonPressed && !reversePTI.buttonPressed) ThrottleOff();
-            if (!reversePTI.buttonPressed && !throttlePTI.buttonPressed && !handbrakePTI.buttonPressed && !deceleratingCar)
+            if (!fwdHeld && !revHeld && !handbrakePTI.buttonPressed && !deceleratingCar)
             {
                 InvokeRepeating("DecelerateCar", 0f, 0.1f);
                 deceleratingCar = true;
@@ -277,15 +307,42 @@ public class PrometeoCarController : MonoBehaviour
             if (Input.GetKey(KeyCode.A)) TurnLeft();
             if (Input.GetKey(KeyCode.D)) TurnRight();
 
-            if (Input.GetKey(KeyCode.W)) { CancelInvoke("DecelerateCar"); deceleratingCar = false; ReleaseBrakes(); GoForward(); }
-            if (Input.GetKey(KeyCode.S)) { CancelInvoke("DecelerateCar"); deceleratingCar = false; if (localVelocityZ > 1.5f) Brakes(); else { ReleaseBrakes(); GoReverse(); } }
-            else if (!Input.GetKey(KeyCode.W)) ReleaseBrakes();
+            bool fwdHeld = Input.GetKey(KeyCode.W);
+            bool revHeld = Input.GetKey(KeyCode.S);
+
+            if (fwdHeld)
+            {
+                CancelInvoke("DecelerateCar");
+                deceleratingCar = false;
+                ReleaseBrakes();
+                GoForward();
+            }
+            else if (revHeld)
+            {
+                CancelInvoke("DecelerateCar");
+                deceleratingCar = false;
+                if (localVelocityZ > 0.6f)
+                {
+                    if (throttleAxis > 0f) throttleAxis = Mathf.MoveTowards(throttleAxis, 0f, Time.deltaTime * 12f);
+                    ThrottleOff();
+                    Brakes();
+                }
+                else
+                {
+                    ReleaseBrakes();
+                    GoReverse();
+                }
+            }
+            else
+            {
+                ReleaseBrakes();
+                ThrottleOff();
+            }
 
             if (Input.GetKey(KeyCode.Space)) { CancelInvoke("DecelerateCar"); deceleratingCar = false; Handbrake(); }
             if (Input.GetKeyUp(KeyCode.Space)) RecoverTraction();
 
-            if (!Input.GetKey(KeyCode.S) && !Input.GetKey(KeyCode.W)) ThrottleOff();
-            if (!Input.GetKey(KeyCode.S) && !Input.GetKey(KeyCode.W) && !Input.GetKey(KeyCode.Space) && !deceleratingCar)
+            if (!fwdHeld && !revHeld && !Input.GetKey(KeyCode.Space) && !deceleratingCar)
             {
                 InvokeRepeating("DecelerateCar", 0f, 0.1f);
                 deceleratingCar = true;
@@ -330,6 +387,16 @@ public class PrometeoCarController : MonoBehaviour
         else
         {
             driftCapForwardSpeed = -1f;
+        }
+
+        // Yuksek hizda (drift disi) direksiyon kirarken ileri hizdaki kaybi kismen dengeler
+        if (!currentlySlidingOrDrifting && steeringInputHeld && carRigidbody != null && absSpd > 65f && localVelocityZ > 15f)
+        {
+            Vector3 localVel = transform.InverseTransformDirection(carRigidbody.linearVelocity);
+            float highSpeedFactor = Mathf.Clamp01((absSpd - 65f) / Mathf.Max(20f, maxSpeed - 65f));
+            float forwardKeepBoost = highSpeedFactor * 2.2f * Mathf.Abs(steeringAxis);
+            localVel.z += forwardKeepBoost * Time.deltaTime;
+            carRigidbody.linearVelocity = transform.TransformDirection(localVel);
         }
 
         // Driftten cikis aninda direksiyon acisini ani koparmadan mevcut teker acisiyla esitle
@@ -383,6 +450,19 @@ public class PrometeoCarController : MonoBehaviour
             extraRearSpinAngle = 0f;
         }
 
+        // Fren sirasinda arka tekerlerin kilitlenmis/surunen goruntusu yerine hizla uyumlu akici donmesini sagla
+        if (!isTractionLocked && brakeAxis > 0.01f && Mathf.Abs(localVelocityZ) > 0.4f && rearLeftCollider != null)
+        {
+            float radius = Mathf.Max(0.05f, rearLeftCollider.radius);
+            float angularVelRadPerSec = localVelocityZ / radius;
+            float degPerSec = angularVelRadPerSec * Mathf.Rad2Deg;
+            brakeVisualRollAngle = (brakeVisualRollAngle + degPerSec * Time.deltaTime) % 360f;
+        }
+        else
+        {
+            brakeVisualRollAngle = 0f;
+        }
+
         AnimateWheelMeshes();
         DriftCarPS();
     }
@@ -390,14 +470,21 @@ public class PrometeoCarController : MonoBehaviour
     float GetSpeedSteerMultiplier()
     {
         float speedRatio = Mathf.Clamp01(Mathf.Abs(carSpeed) / Mathf.Max(20f, maxSpeed));
-        // 0 km/h -> 1.0, yuksek hiz -> highSpeedSteerScale
-        return Mathf.Lerp(1f, Mathf.Clamp(highSpeedSteerScale, 0.2f, 1f), speedRatio);
+        bool driftActive = isDrifting || isTractionLocked || Mathf.Abs(localVelocityX) > 3.0f;
+        float targetHighSpeedScale = driftActive
+            ? Mathf.Max(Mathf.Clamp(highSpeedSteerScale, 0.2f, 1f), Mathf.Clamp(highSpeedDriftSteerScale, 0.2f, 1f))
+            : Mathf.Clamp(highSpeedSteerScale, 0.2f, 1f);
+
+        // 0 km/h -> 1.0, yuksek hiz -> targetHighSpeedScale
+        return Mathf.Lerp(1f, targetHighSpeedScale, speedRatio);
     }
 
     void ApplySteerAngle()
     {
         float speedSteerMult = GetSpeedSteerMultiplier();
-        float effectiveRate = Mathf.Clamp01(steeringSpeed * Mathf.Lerp(1.25f, 0.55f, Mathf.Clamp01(Mathf.Abs(carSpeed) / Mathf.Max(20f, maxSpeed))));
+        bool driftActive = isDrifting || isTractionLocked || Mathf.Abs(localVelocityX) > 3.0f;
+        float minRate = driftActive ? 0.9f : 0.55f;
+        float effectiveRate = Mathf.Clamp01(steeringSpeed * Mathf.Lerp(1.25f, minRate, Mathf.Clamp01(Mathf.Abs(carSpeed) / Mathf.Max(20f, maxSpeed))));
         float angle = steeringAxis * maxSteeringAngle * speedSteerMult;
 
         frontLeftCollider.steerAngle = Mathf.Lerp(frontLeftCollider.steerAngle, angle, effectiveRate);
@@ -412,11 +499,11 @@ public class PrometeoCarController : MonoBehaviour
         bool activelyDrifting = absSpd > 4f && (isDrifting || isTractionLocked);
         if (!activelyDrifting) return;
 
-        // Dusuk hizda (0..45 km/h) daha fazla topla, yuksek hizda daha az ve yumusak topla
+        // Dusuk hizda (0..45 km/h) daha fazla topla, yuksek hizda da drift toparlamasi icin yeterli pay birak
         float lowSpeedFactor = 1f - Mathf.Clamp01(absSpd / 50f);
         float highSpeedFactor = Mathf.Clamp01(absSpd / Mathf.Max(40f, maxSpeed));
 
-        float speedAdjustedAssist = counterSteerAssist * Mathf.Lerp(1.35f, 0.35f, highSpeedFactor);
+        float speedAdjustedAssist = counterSteerAssist * Mathf.Lerp(1.35f, 0.75f, highSpeedFactor);
         float slipNorm = Mathf.Clamp(localVelocityX / 8.5f, -1f, 1f);
         float counterAngle = slipNorm * maxSteeringAngle * speedAdjustedAssist * Mathf.Lerp(0.65f, 1.05f, lowSpeedFactor);
 
@@ -428,7 +515,7 @@ public class PrometeoCarController : MonoBehaviour
 
         float blendFactor = steeringInputHeld
             ? Mathf.Clamp01(steeringSpeed * 1.45f)
-            : Mathf.Clamp01(steeringSpeed * Mathf.Lerp(2.2f, 0.6f, highSpeedFactor) * (0.45f + counterSteerAssist));
+            : Mathf.Clamp01(steeringSpeed * Mathf.Lerp(2.2f, 1.1f, highSpeedFactor) * (0.45f + counterSteerAssist));
 
         frontLeftCollider.steerAngle = Mathf.Lerp(frontLeftCollider.steerAngle, targetAngle, blendFactor);
         frontRightCollider.steerAngle = Mathf.Lerp(frontRightCollider.steerAngle, targetAngle, blendFactor);
@@ -566,16 +653,20 @@ public class PrometeoCarController : MonoBehaviour
 
     public void TurnLeft()
     {
-        float speedRateMult = Mathf.Lerp(1.25f, 0.55f, Mathf.Clamp01(Mathf.Abs(carSpeed) / Mathf.Max(20f, maxSpeed)));
-        float driftInputMult = (isDrifting || isTractionLocked) ? 1.15f : 1f;
+        bool driftActive = isDrifting || isTractionLocked || Mathf.Abs(localVelocityX) > 3.0f;
+        float minRate = driftActive ? 1.05f : 0.55f;
+        float speedRateMult = Mathf.Lerp(1.25f, minRate, Mathf.Clamp01(Mathf.Abs(carSpeed) / Mathf.Max(20f, maxSpeed)));
+        float driftInputMult = driftActive ? 1.25f : 1f;
         steeringAxis = Mathf.Max(-1f, steeringAxis - Time.deltaTime * 10f * steeringSpeed * speedRateMult * driftInputMult);
         ApplySteerAngle();
     }
 
     public void TurnRight()
     {
-        float speedRateMult = Mathf.Lerp(1.25f, 0.55f, Mathf.Clamp01(Mathf.Abs(carSpeed) / Mathf.Max(20f, maxSpeed)));
-        float driftInputMult = (isDrifting || isTractionLocked) ? 1.15f : 1f;
+        bool driftActive = isDrifting || isTractionLocked || Mathf.Abs(localVelocityX) > 3.0f;
+        float minRate = driftActive ? 1.05f : 0.55f;
+        float speedRateMult = Mathf.Lerp(1.25f, minRate, Mathf.Clamp01(Mathf.Abs(carSpeed) / Mathf.Max(20f, maxSpeed)));
+        float driftInputMult = driftActive ? 1.25f : 1f;
         steeringAxis = Mathf.Min(1f, steeringAxis + Time.deltaTime * 10f * steeringSpeed * speedRateMult * driftInputMult);
         ApplySteerAngle();
     }
@@ -615,6 +706,12 @@ public class PrometeoCarController : MonoBehaviour
                 }
                 rearLeftMesh.transform.SetPositionAndRotation(pos, transform.rotation * lockedRearLeftLocalRot);
             }
+            else if (!isTractionLocked && brakeAxis > 0.01f && Mathf.Abs(localVelocityZ) > 0.4f)
+            {
+                Quaternion steerOnly = Quaternion.Euler(0f, rearLeftCollider.steerAngle, 0f);
+                Quaternion rollRot = Quaternion.Euler(brakeVisualRollAngle, 0f, 0f);
+                rearLeftMesh.transform.SetPositionAndRotation(pos, transform.rotation * steerOnly * rollRot);
+            }
             else
             {
                 rearLeftMesh.transform.SetPositionAndRotation(pos, rot * extraSpinRot);
@@ -629,6 +726,12 @@ public class PrometeoCarController : MonoBehaviour
                     rearWheelsLocked = true;
                 }
                 rearRightMesh.transform.SetPositionAndRotation(pos, transform.rotation * lockedRearRightLocalRot);
+            }
+            else if (!isTractionLocked && brakeAxis > 0.01f && Mathf.Abs(localVelocityZ) > 0.4f)
+            {
+                Quaternion steerOnly = Quaternion.Euler(0f, rearRightCollider.steerAngle, 0f);
+                Quaternion rollRot = Quaternion.Euler(brakeVisualRollAngle, 0f, 0f);
+                rearRightMesh.transform.SetPositionAndRotation(pos, transform.rotation * steerOnly * rollRot);
             }
             else
             {
@@ -662,9 +765,10 @@ public class PrometeoCarController : MonoBehaviour
     public void GoReverse()
     {
         ApplyNormalAndLaunchGrip();
-        throttleAxis = Mathf.Max(-1f, throttleAxis - Time.deltaTime * 3f);
+        if (throttleAxis > 0f) throttleAxis = 0f;
+        throttleAxis = Mathf.Max(-1f, throttleAxis - Time.deltaTime * 4f);
 
-        if (localVelocityZ > 1.5f) Brakes();
+        if (localVelocityZ > 0.6f) Brakes();
         else if (Mathf.Abs(Mathf.RoundToInt(carSpeed)) < maxReverseSpeed)
         {
             float torque = (accelerationMultiplier * 50f) * throttleAxis;
@@ -712,11 +816,16 @@ public class PrometeoCarController : MonoBehaviour
     public void Brakes()
     {
         brakeAxis = Mathf.Min(1f, brakeAxis + Time.deltaTime * brakeBuildSpeed);
-        float currentBrake = brakeForce * brakeAxis;
-        frontLeftCollider.brakeTorque = currentBrake;
-        frontRightCollider.brakeTorque = currentBrake;
-        rearLeftCollider.brakeTorque = currentBrake * 0.8f;
-        rearRightCollider.brakeTorque = currentBrake * 0.8f;
+        float totalBrake = brakeForce * brakeAxis;
+
+        // Toplam fren gücünü koru: ön tekerleri kilitlemeyecek seviyede tut, kalan gücü arkaya aktar
+        float frontBrake = totalBrake * 0.35f;
+        float rearBrake = totalBrake * 1.15f;
+
+        frontLeftCollider.brakeTorque = frontBrake;
+        frontRightCollider.brakeTorque = frontBrake;
+        rearLeftCollider.brakeTorque = rearBrake;
+        rearRightCollider.brakeTorque = rearBrake;
     }
 
     public void ReleaseBrakes()
@@ -752,6 +861,33 @@ public class PrometeoCarController : MonoBehaviour
         float rearBrakeTorque = brakeForce * Mathf.Max(0.25f, handbrakeBrakeStrength * 0.65f) * Mathf.Max(0.35f, driftingAxis);
         rearLeftCollider.brakeTorque = rearBrakeTorque;
         rearRightCollider.brakeTorque = rearBrakeTorque;
+
+        // Gaz/geri/direksiyon tuşlarına basılmadan boşluğa basılı tutulduğunda
+        // drift hissini bozmadan aracın ileri/geri hızını yumuşakça yavaşlat
+        bool noDrivingOrSteerInput = useTouchControls && touchControlsSetup
+            ? (!throttlePTI.buttonPressed && !reversePTI.buttonPressed && !turnLeftPTI.buttonPressed && !turnRightPTI.buttonPressed)
+            : (!Input.GetKey(KeyCode.W) && !Input.GetKey(KeyCode.S) && !Input.GetKey(KeyCode.A) && !Input.GetKey(KeyCode.D));
+
+        if (noDrivingOrSteerInput && carRigidbody != null)
+        {
+            float slowFactor = Mathf.Clamp01(handbrakeBrakeStrength) * driftingAxis;
+            float dragMultiplier = 1f / (1f + (Time.deltaTime * (1.35f + slowFactor * 2.1f)));
+
+            Vector3 vel = carRigidbody.linearVelocity;
+            vel.x *= dragMultiplier;
+            vel.z *= dragMultiplier;
+            carRigidbody.linearVelocity = vel;
+
+            // Ön tekerlere de hafif fren vererek boşa süzülmeyi kes
+            float frontAssistBrake = brakeForce * 0.25f * slowFactor;
+            frontLeftCollider.brakeTorque = Mathf.Max(frontLeftCollider.brakeTorque, frontAssistBrake);
+            frontRightCollider.brakeTorque = Mathf.Max(frontLeftCollider.brakeTorque, frontAssistBrake);
+
+            if (carRigidbody.linearVelocity.magnitude < 0.2f)
+            {
+                carRigidbody.linearVelocity = Vector3.zero;
+            }
+        }
 
         isTractionLocked = true;
     }

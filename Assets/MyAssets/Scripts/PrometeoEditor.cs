@@ -129,7 +129,7 @@ public class PrometeoEditor : Editor{
     steeringSpeed.floatValue = EditorGUILayout.Slider("Steering Speed:", steeringSpeed.floatValue, 0.1f, 1f);
     brakeForce.intValue = EditorGUILayout.IntSlider("Brake Force:", brakeForce.intValue, 100, 600);
     brakeBuildSpeed.floatValue = EditorGUILayout.Slider("Brake Build Speed:", brakeBuildSpeed.floatValue, 0.5f, 10f);
-    decelerationMultiplier.intValue = EditorGUILayout.IntSlider("Deceleration Multiplier:", decelerationMultiplier.intValue, 1, 10);
+    decelerationMultiplier.floatValue = EditorGUILayout.Slider("Deceleration Multiplier:", decelerationMultiplier.floatValue, 0.1f, 5f);
     handbrakeDriftMultiplier.intValue = EditorGUILayout.IntSlider("Drift Multiplier:", handbrakeDriftMultiplier.intValue, 1, 10);
     EditorGUILayout.PropertyField(bodyMassCenter, new GUIContent("Mass Center of Car: "));
 

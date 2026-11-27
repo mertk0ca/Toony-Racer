@@ -43,9 +43,10 @@ public class CameraFollow : MonoBehaviour
     private float currentHeight;
     private float heightVelocity;
 
-    // Doğrudan fare ile kontrol edilen yörünge (orbit) açıları
-    private float orbitYawOffset;
+    // Serbest bakışta dünya eksenine sabitlenen yaw ve pitch açıları
+    private float worldOrbitYaw;
     private float orbitPitchOffset;
+    private bool isFreeLooking;
 
     private float idleTimer;
     private bool cursorLocked;
@@ -111,39 +112,45 @@ public class CameraFollow : MonoBehaviour
         if (!cursorLocked && (Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1)))
         {
             LockCursor(true);
-            idleTimer = 0f;
             return;
         }
 
-        if (!cursorLocked)
+        if (cursorLocked)
+        {
+            float mouseX = Input.GetAxis("Mouse X");
+            float mouseY = Input.GetAxis("Mouse Y");
+            bool movedMouse = Mathf.Abs(mouseX) > 0.0001f || Mathf.Abs(mouseY) > 0.0001f;
+
+            if (movedMouse)
+            {
+                if (!isFreeLooking)
+                {
+                    // Serbest bakışa geçerken mevcut kamera açısını dünya yaw'ı olarak kilitle
+                    worldOrbitYaw = currentYaw;
+                    isFreeLooking = true;
+                }
+
+                idleTimer = 0f;
+                worldOrbitYaw = Mathf.Repeat(worldOrbitYaw + mouseX * mouseSensitivity, 360f);
+                orbitPitchOffset = Mathf.Clamp(orbitPitchOffset - mouseY * mouseSensitivity, minLookPitch, maxLookPitch);
+                return;
+            }
+        }
+
+        if (isFreeLooking)
         {
             idleTimer += Time.deltaTime;
             if (idleTimer >= returnDelay)
             {
-                orbitYawOffset = Mathf.LerpAngle(orbitYawOffset, 0f, returnSpeed * Time.deltaTime);
+                // Otomatik dönüş başladığında mevcut dünya yaw'ını currentYaw'a aktar ve arabaya hizala
+                currentYaw = worldOrbitYaw;
                 orbitPitchOffset = Mathf.LerpAngle(orbitPitchOffset, 0f, returnSpeed * Time.deltaTime);
+                isFreeLooking = false;
             }
-            return;
-        }
-
-        float mouseX = Input.GetAxis("Mouse X");
-        float mouseY = Input.GetAxis("Mouse Y");
-        bool movedMouse = Mathf.Abs(mouseX) > 0.0001f || Mathf.Abs(mouseY) > 0.0001f;
-
-        if (movedMouse)
-        {
-            idleTimer = 0f;
-            orbitYawOffset = Mathf.Repeat(orbitYawOffset + mouseX * mouseSensitivity, 360f);
-            orbitPitchOffset = Mathf.Clamp(orbitPitchOffset - mouseY * mouseSensitivity, minLookPitch, maxLookPitch);
         }
         else
         {
-            idleTimer += Time.deltaTime;
-            if (idleTimer >= returnDelay)
-            {
-                orbitYawOffset = Mathf.LerpAngle(orbitYawOffset, 0f, returnSpeed * Time.deltaTime);
-                orbitPitchOffset = Mathf.LerpAngle(orbitPitchOffset, 0f, returnSpeed * Time.deltaTime);
-            }
+            orbitPitchOffset = Mathf.LerpAngle(orbitPitchOffset, 0f, returnSpeed * Time.deltaTime);
         }
     }
 
@@ -167,8 +174,6 @@ public class CameraFollow : MonoBehaviour
     {
         if (target == null) return;
         if (targetRigidbody == null) ResolveRigidbody();
-
-        HandleMouseLook();
 
         Vector3 carForward = target.forward;
         carForward.y = 0f;
@@ -208,26 +213,39 @@ public class CameraFollow : MonoBehaviour
         if (!initialized)
         {
             currentYaw = desiredYaw;
+            worldOrbitYaw = desiredYaw;
             currentHeight = height;
-            transform.position = CalculateOrbitPosition(orbitCenter, currentYaw, currentHeight, orbitYawOffset, orbitPitchOffset);
+            transform.position = CalculateOrbitPosition(orbitCenter, currentYaw, currentHeight, orbitPitchOffset);
             transform.LookAt(orbitCenter);
             initialized = true;
             return;
         }
 
-        currentYaw = Mathf.SmoothDampAngle(currentYaw, desiredYaw, ref yawVelocity, yawSmoothTime);
+        HandleMouseLook();
+
+        float activeYaw;
+        if (isFreeLooking)
+        {
+            // Serbest bakışta arabanın dönüşü kamerayı sürüklemez; dünya açısı sabit kalır
+            activeYaw = worldOrbitYaw;
+        }
+        else
+        {
+            currentYaw = Mathf.SmoothDampAngle(currentYaw, desiredYaw, ref yawVelocity, yawSmoothTime);
+            activeYaw = currentYaw;
+        }
+
         currentHeight = Mathf.SmoothDamp(currentHeight, height, ref heightVelocity, heightSmoothTime);
 
-        transform.position = CalculateOrbitPosition(orbitCenter, currentYaw, currentHeight, orbitYawOffset, orbitPitchOffset);
+        transform.position = CalculateOrbitPosition(orbitCenter, activeYaw, currentHeight, orbitPitchOffset);
         transform.LookAt(orbitCenter);
 
         UpdateFov();
     }
 
-    private Vector3 CalculateOrbitPosition(Vector3 center, float baseYaw, float camHeight, float yawOrbit, float pitchOrbit)
+    private Vector3 CalculateOrbitPosition(Vector3 center, float yawDeg, float camHeight, float pitchOrbit)
     {
-        float totalYaw = baseYaw + yawOrbit;
-        Quaternion yawRot = Quaternion.Euler(0f, totalYaw, 0f);
+        Quaternion yawRot = Quaternion.Euler(0f, yawDeg, 0f);
         Vector3 backDir = -(yawRot * Vector3.forward);
 
         float pitchRad = pitchOrbit * Mathf.Deg2Rad;
